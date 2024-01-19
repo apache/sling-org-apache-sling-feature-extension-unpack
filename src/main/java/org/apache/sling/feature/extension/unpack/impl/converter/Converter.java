@@ -25,6 +25,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStreamWriter;
 import java.io.Writer;
+import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
@@ -36,14 +37,6 @@ import java.util.List;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
-import org.apache.http.HttpEntity;
-import org.apache.http.HttpRequest;
-import org.apache.http.client.HttpRequestRetryHandler;
-import org.apache.http.client.methods.CloseableHttpResponse;
-import org.apache.http.client.methods.HttpGet;
-import org.apache.http.impl.client.CloseableHttpClient;
-import org.apache.http.impl.client.DefaultHttpRequestRetryHandler;
-import org.apache.http.impl.client.HttpClients;
 import org.apache.sling.feature.Artifact;
 import org.apache.sling.feature.ArtifactId;
 import org.apache.sling.feature.Extension;
@@ -111,22 +104,13 @@ public class Converter {
         Extension extension = new Extension(ExtensionType.ARTIFACTS, extensionName, ExtensionState.OPTIONAL);
 
         for (String urlString : urls) {
-            MessageDigest md = MessageDigest.getInstance("SHA-512");
-             HttpRequestRetryHandler rh = new DefaultHttpRequestRetryHandler(10, false) {
-                @Override
-                protected boolean handleAsIdempotent(HttpRequest request) {
-                    md.reset(); // Reset message digest on retry
-                    return super.handleAsIdempotent(request);
-                }
-            };
-
+            URL url = new URL(urlString);
             File tmp = File.createTempFile("unpack", ".zip");
 
-            try (CloseableHttpClient httpClient = HttpClients.custom().setRetryHandler(rh).build()) {
-                HttpGet httpGet = new HttpGet(urlString);
-                try (CloseableHttpResponse res = httpClient.execute(httpGet)) {
-                    HttpEntity entity = res.getEntity();
-                    try (DigestInputStream inputStream = new DigestInputStream(entity.getContent(), md)) {
+            try {
+                int retries = 10;
+                while (retries > 0) {
+                    try (DigestInputStream inputStream = new DigestInputStream(url.openStream(), MessageDigest.getInstance("SHA-512"))) {
                         Files.copy(inputStream, tmp.toPath(), StandardCopyOption.REPLACE_EXISTING);
                         String digest = bytesToHex(inputStream.getMessageDigest().digest());
 
@@ -140,6 +124,13 @@ public class Converter {
                             Files.move(tmp.toPath(), target.toPath(), StandardCopyOption.REPLACE_EXISTING);
                         } else {
                             unhandled.add(urlString);
+                        }
+                        break;
+                    } catch (IOException ioe) {
+                        retries--;
+
+                        if (retries <= 0) {
+                            throw ioe;
                         }
                     }
                 }
