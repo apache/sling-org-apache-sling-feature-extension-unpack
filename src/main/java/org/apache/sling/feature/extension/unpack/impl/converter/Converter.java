@@ -36,15 +36,14 @@ import java.util.List;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
-import org.apache.hc.client5.http.HttpRequestRetryStrategy;
-import org.apache.hc.client5.http.classic.methods.HttpGet;
-import org.apache.hc.client5.http.impl.DefaultHttpRequestRetryStrategy;
-import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
-import org.apache.hc.client5.http.impl.classic.CloseableHttpResponse;
-import org.apache.hc.client5.http.impl.classic.HttpClients;
-import org.apache.hc.core5.http.HttpEntity;
-import org.apache.hc.core5.http.HttpRequest;
-import org.apache.hc.core5.util.TimeValue;
+import org.apache.http.HttpEntity;
+import org.apache.http.HttpRequest;
+import org.apache.http.client.HttpRequestRetryHandler;
+import org.apache.http.client.methods.CloseableHttpResponse;
+import org.apache.http.client.methods.HttpGet;
+import org.apache.http.impl.client.CloseableHttpClient;
+import org.apache.http.impl.client.DefaultHttpRequestRetryHandler;
+import org.apache.http.impl.client.HttpClients;
 import org.apache.sling.feature.Artifact;
 import org.apache.sling.feature.ArtifactId;
 import org.apache.sling.feature.Extension;
@@ -113,7 +112,7 @@ public class Converter {
 
         for (String urlString : urls) {
             MessageDigest md = MessageDigest.getInstance("SHA-512");
-            HttpRequestRetryStrategy rs = new DefaultHttpRequestRetryStrategy(10, TimeValue.ofSeconds(1)) {
+             HttpRequestRetryHandler rh = new DefaultHttpRequestRetryHandler(10, false) {
                 @Override
                 protected boolean handleAsIdempotent(HttpRequest request) {
                     md.reset(); // Reset message digest on retry
@@ -123,7 +122,7 @@ public class Converter {
 
             File tmp = File.createTempFile("unpack", ".zip");
 
-            try (CloseableHttpClient httpClient = HttpClients.custom().setRetryStrategy(rs).build()) {
+            try (CloseableHttpClient httpClient = HttpClients.custom().setRetryHandler(rh).build()) {
                 HttpGet httpGet = new HttpGet(urlString);
                 try (CloseableHttpResponse res = httpClient.execute(httpGet)) {
                     HttpEntity entity = res.getEntity();
