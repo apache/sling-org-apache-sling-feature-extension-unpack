@@ -34,6 +34,7 @@ import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
@@ -131,6 +132,12 @@ public class Converter {
 
                         if (retries <= 0) {
                             throw ioe;
+                        } else {
+                            try {
+                                TimeUnit.SECONDS.sleep(1);
+                            } catch (InterruptedException ie) {
+                                // Ignore
+                            }
                         }
                     }
                 }
